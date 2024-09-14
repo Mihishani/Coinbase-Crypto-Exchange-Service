@@ -49,43 +49,43 @@ on:
   push:
     branches:
       - master
-  pull_request:
-    branches:
-      - master
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
+    # Step 1: Checkout the repository code
     - name: Checkout code
       uses: actions/checkout@v2
 
+    # Step 2: Set up Docker Buildx for multi-platform builds
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
 
+    # Step 3: Build Docker image
+    - name: Build Docker image
+      run: docker build -t myapp:latest .
+
+    # Step 4: Log in to Docker Registry (e.g., Docker Hub)
     - name: Log in to Docker Hub
       run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-    - name: Log in to AWS ECR
+    # Step 5: Tag and push the Docker image
+    - name: Tag and Push Docker image
       run: |
-        aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws ecr get-login-password --region eu-north-1 | docker login --username AWS --password-stdin 503561457120.dkr.ecr.eu-north-1.amazonaws.com
+        docker tag myapp:latest ${{ secrets.DOCKER_USERNAME }}/myapp:latest
+        docker push ${{ secrets.DOCKER_USERNAME }}/myapp:latest
 
-    - name: Build and Push Docker Images to Docker Hub and ECR
-      run: |
-        services=("crypto_price_service" "transaction_service" "account_service")
-        for service in "${services[@]}"; do
-          echo "Processing $service..."
-          # Build Docker image for Docker Hub
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/$service:latest ./src/$service
-          docker push ${{ secrets.DOCKER_USERNAME }}/$service:latest
-         
-          # Tag and push to AWS ECR
-          docker tag ${{ secrets.DOCKER_USERNAME }}/$service:latest 503561457120.dkr.ecr.eu-north-1.amazonaws.com/$service:latest
-          docker push 503561457120.dkr.ecr.eu-north-1.amazonaws.com/$service:latest
-        done
-
-    - name: Clean up Docker resources
-      run: docker system prune -af
+    # Step 6: SSH into the server and deploy the application
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v0.1.3
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          docker pull ${{ secrets.DOCKER_USERNAME }}/myapp:latest
+          docker stop myapp || true
+          docker rm myapp || true
+          docker run -d -p 80:3000 --name myapp ${{ secrets.DOCKER_USERNAME }}/myapp:latest
