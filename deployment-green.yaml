@@ -14,6 +14,6 @@ spec:
     spec:
       containers:
       - name: web-service
-        image: janithnanayakkara/janithnanayakkara/web-service:latest
+        image: frimeshani/frimeshani/web-service:latest
         ports:
         - containerPort: 3000
